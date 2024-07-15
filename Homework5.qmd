@@ -1,0 +1,180 @@
+---
+title: "Homework5"
+author: "Andrew Harvey"
+date: "16 July 2024"
+format: html
+editor: visual
+---
+
+## Task 1: Conceptual Questions
+
+1. What is the purpose of using cross-validation when fitting a random forest model?
+
+2. Describe the bagged tree algorithm.
+
++ The bagged tree algorithm is a method in which we attempt to find accuracy within trees. The bagged tree algorithm takes in multiple fitted trees and aggregates them over a designated response variable in an attempt to find a prediction that holds for the accumulated trees. 
+
+3. What is meant by a general linear model?
+
+4. When fitting a multiple linear regression model, what does adding an interaction term do? That is, what does it allow the model to do differently as compared to when it is not included in the model?
+
+5. Why do we split our data into a training and test set?
+
+
+## Task 2: Fitting Models
+
+### Quick EDA/Data Preparation
+
+1. Quickly understand your data. Check on missingness and summarize the data, especially with respect to the relationships of the variables to HeartDisease.
+```{r Load Libraries, warning=FALSE,message=FALSE}
+library(tidyverse)
+library(caret)
+```
+
+```{r Load data and summarise}
+originalData<-read.csv("https://www4.stat.ncsu.edu/~online/datasets/heart.csv")
+
+# If RestingBP or Cholesterol = 0 then patient would be dead thus we can assume 0 is a missing/Null value
+# Replaces ) with NA
+originalData$RestingBP<-na_if(originalData$RestingBP,0)
+originalData$Cholesterol<-na_if(originalData$Cholesterol,0)
+
+# Find number of NA rows
+sum(is.na(originalData))
+
+# Create new dataframe with no na rows
+heartDisease<-originalData|>
+  drop_na()
+
+# Create Summary table with respect to heart disease
+summary(heartDisease)
+
+```
+
+
+2. Create a new variable that is a factor version of the HeartDisease variable (if needed, this depends on how you read in your data). Remove the ST_Slope variable and the original HeartDisease variable (if applicable).
+
+```{r Factor HeartDisease}
+# Change HeartDisease to factor, drop ST_Slope
+heartDisease<-heartDisease|>
+  select(-ST_Slope)
+```
+
+3. We’ll be doing a kNN model below to predict whether or not someone has heart disease. To use kNN we generally want to have all numeric predictors (although we could try to create our own loss function as an alternative). In this case we have some categorical predictors still in our data set: Sex, ExerciseAngina ChestPainType, and RestingECG. 
+
+Create dummy columns corresponding to the values of these three variables for use in our kNN fit. The caret vignette has a function to help us out here. You should use dummyVars() and predict() to create new columns. Then add these columns to our data frame.
+
+```{r Remove Categorical Variables}
+
+# Use dummyVars to transform all categorical variables to numerics.
+# Adds each unique text entry as its own variable where 0=False and 1=True.
+dummies<-dummyVars(~.,data = heartDisease, sep = ".")
+
+heartDisease<-predict(dummies,newdata = heartDisease)|>
+  as_tibble()|>
+  mutate(HeartDisease=as.factor(HeartDisease))
+```
+
+### Split your Data
+
+split your data into a training and test set. (ideally you'd do this prior to the EDA so that info from the EDA doesn't bias what you do modeling-wise, but that isn't usually done.)
+
+```{r Split Data}
+# Set the seed to enable reproducible 
+set.seed(8)
+# Create a numeric vector that will be used to select rows in heartDisease_2 for split
+trainingVector<- sample(1:nrow(heartDisease),size = nrow(heartDisease)*.8)
+
+# Subset heartDisease_2 into  training and test data sets
+heartTrain<-heartDisease[trainingVector,]
+
+heartTest<-heartDisease[-trainingVector,]
+```
+
+### kNN
+
+Next, we’ll fit a kNN model. The article <h>here<h> gives a great example of selecting the number of neighbors to use with the caret package.
+
+You don’t have to use all the variables from your dataset when fitting the model. However, you should only use numeric variables.
+
+They use repeated 10 fold cross-validation. Although computationally intensive, doing repeated CV helps to give a more stable prediction of CV error. This is similar to how a mean is less variable than a single value. Since there is some inherent randomness in doing a CV computation, we can get an overall more stable result by averaging a few runs of the CV algorithm!
+
+Train the kNN model. Use repeated 10 fold cross-validation, with the number of repeats being 3. You should also preprocess the data by centering and scaling. When fitting the model, set the tuneGrid so that you are considering values of k of 1, 2, 3, . . . , 40. (Note: From the help for the train() function it says: tuneGrid A data frame with possible tuning values. The columns are named the same as the tuning parameters. The name of the tuning parameter here is k.)
+Lastly, check how well your chosen model does on the test set using the confusionMatrix() function.
+
+```{r kNN}
+trctrl<-trainControl(method = "repeatedcv", number = 10, repeats = 3)
+
+knn_fit<-train(as.factor(HeartDisease) ~.,
+               data = heartTrain,
+               method = "knn",
+               trControl=trctrl,
+               preProcess=c("center","scale"),
+               tuneLength=10)
+
+knn_fit
+
+plot(knn_fit)
+
+testPred<-predict(knn_fit,newdata = heartTest)
+testPred
+
+confusionMatrix(testPred,heartTest$HeartDisease)
+```
+
+### Logistic Regression
+
+Using your EDA, posit three different logistic regression models. Note: You don’t have to use the dummy columns you made here as the glm() function (and the caret implementation of it) can handle factor/ character variables as predictors.
+
+```{r 3 different log regression models}
+#age,cholesterol, maxBP
+
+ageHeart<-table(heartDisease$HeartDisease,cut(heartDisease$Age, c(28,33,38,43,48,53,58,63,68,73,78)))
+
+rbind(ageHeart,apply(ageHeart,MARGIN = 2,FUN = function(x){round(x[2]/sum(x),3)}))
+
+table(heartDisease$HeartDisease,heartDisease$Age)
+
+cholHeart<-table(heartDisease$HeartDisease,cut(heartDisease$Cholesterol, c(85,185,285,385,485,585,685)))
+
+rbind(cholHeart,apply(cholHeart,MARGIN = 2,FUN = function(x){round(x[2]/sum(x),3)}))
+
+table(heartDisease$HeartDisease,heartDisease$Cholesterol)
+
+maxHRHeart<-table(heartDisease$HeartDisease,cut(heartDisease$MaxHR, c(69,103,137,171,205)))
+
+rbind(maxHRHeart,apply(maxHRHeart,MARGIN = 2,FUN = function(x){round(x[2]/sum(x),3)}))
+
+table(heartDisease$HeartDisease,heartDisease$Cholesterol)
+```
+
+Fit those models on the training set, using repeated CV as done above. You can preprocess the data or not, up to you. 
+
+```{r train and fit ageHeart}
+
+ageHeart_train<- heartDisease[trainingVector,]
+ageHeart_test<- heartDisease[-trainingVector,]
+
+ageHeart_fit<-train(as.factor(HeartDisease) ~.,
+               data = ageHeart_train,
+               method = "glm",
+               trControl=trctrl,
+               preProcess=c("center","scale"),
+               tuneLength=10)
+ageHeart_fit
+
+heartDisease$HeartDisease<-as.numeric(as.character(heartDisease$HeartDisease))
+ageHeart_sum<-heartDisease|>
+  group_by(Age_cut=cut(Age,11))|>
+  summarise(probHeartDisease = mean(HeartDisease))
+ggplot(ageHeart_sum,aes(x=Age_cut,y=probHeartDisease))+geom_point()+geom_point(stat = "identity")
+
+testPred<-predict(knn_fit,newdata = heartTest)
+testPred
+
+confusionMatrix(testPred,heartTest$HeartDisease)
+```
+
+Identify your best model and provide a basic summary of it.
+
+Lastly, check how well your chosen model does on the test set using the confusionMatrix() function.
