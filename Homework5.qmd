@@ -29,6 +29,7 @@ editor: visual
 ```{r Load Libraries, warning=FALSE,message=FALSE}
 library(tidyverse)
 library(caret)
+library(randomForest)
 ```
 
 ```{r Load data and summarise}
@@ -70,7 +71,7 @@ Create dummy columns corresponding to the values of these three variables for us
 # Adds each unique text entry as its own variable where 0=False and 1=True.
 dummies<-dummyVars(~.,data = heartDisease, sep = ".")
 
-heartDisease<-predict(dummies,newdata = heartDisease)|>
+heartDisease2<-predict(dummies,newdata = heartDisease)|>
   as_tibble()|>
   mutate(HeartDisease=as.factor(HeartDisease))
 ```
@@ -83,12 +84,12 @@ split your data into a training and test set. (ideally you'd do this prior to th
 # Set the seed to enable reproducible 
 set.seed(8)
 # Create a numeric vector that will be used to select rows in heartDisease_2 for split
-trainingVector<- sample(1:nrow(heartDisease),size = nrow(heartDisease)*.8)
+trainingVector<- sample(1:nrow(heartDisease2),size = nrow(heartDisease2)*.8)
 
 # Subset heartDisease_2 into  training and test data sets
-heartTrain<-heartDisease[trainingVector,]
+heartTrain<-heartDisease2[trainingVector,]
 
-heartTest<-heartDisease[-trainingVector,]
+heartTest<-heartDisease2[-trainingVector,]
 ```
 
 ### kNN
@@ -126,55 +127,219 @@ confusionMatrix(testPred,heartTest$HeartDisease)
 
 Using your EDA, posit three different logistic regression models. Note: You don’t have to use the dummy columns you made here as the glm() function (and the caret implementation of it) can handle factor/ character variables as predictors.
 
-```{r 3 different log regression models}
-#age,cholesterol, maxBP
-
-ageHeart<-table(heartDisease$HeartDisease,cut(heartDisease$Age, c(28,33,38,43,48,53,58,63,68,73,78)))
-
-rbind(ageHeart,apply(ageHeart,MARGIN = 2,FUN = function(x){round(x[2]/sum(x),3)}))
-
-table(heartDisease$HeartDisease,heartDisease$Age)
-
-cholHeart<-table(heartDisease$HeartDisease,cut(heartDisease$Cholesterol, c(85,185,285,385,485,585,685)))
-
-rbind(cholHeart,apply(cholHeart,MARGIN = 2,FUN = function(x){round(x[2]/sum(x),3)}))
-
-table(heartDisease$HeartDisease,heartDisease$Cholesterol)
-
-maxHRHeart<-table(heartDisease$HeartDisease,cut(heartDisease$MaxHR, c(69,103,137,171,205)))
-
-rbind(maxHRHeart,apply(maxHRHeart,MARGIN = 2,FUN = function(x){round(x[2]/sum(x),3)}))
-
-table(heartDisease$HeartDisease,heartDisease$Cholesterol)
-```
-
 Fit those models on the training set, using repeated CV as done above. You can preprocess the data or not, up to you. 
 
 ```{r train and fit ageHeart}
 
-ageHeart_train<- heartDisease[trainingVector,]
-ageHeart_test<- heartDisease[-trainingVector,]
+# ageHeart_train<- heartDisease[trainingVector,]
+# ageHeart_test<- heartDisease[-trainingVector,]
+# ageHeart_test$HeartDisease<-as.factor(ageHeart_test$HeartDisease)
 
-ageHeart_fit<-train(as.factor(HeartDisease) ~.,
-               data = ageHeart_train,
+# ageHeart_fit<-train(as.factor(HeartDisease) ~.,
+#                data = ageHeart_train,
+#                method = "glm",
+#                trControl=trctrl,
+#                preProcess=c("center","scale"),
+#                tuneLength=10)
+# ageHeart_fit
+age_glmFit<-train(as.factor(HeartDisease)~Age,
+                  data=heartTrain,
+                  method="glm",
+                  trControl = trctrl,
+                  preProcess=c("center","scale"),
+                  tuneLength=10,
+                  family="binomial")
+age_glmFit
+summary(age_glmFit)
+
+heartTrain$HeartDisease<-as.numeric(as.character(heartTrain$HeartDisease))
+
+ageHeart_sum<-heartTrain|>
+  group_by(Age)|>
+  summarise(probHeartDisease = mean(HeartDisease), n=n())
+
+ggplot(ageHeart_sum,aes(x=Age,y=probHeartDisease))+
+  geom_point(stat = "identity",aes(size = n))+
+  stat_smooth(data = heartTrain,
+              aes(x=Age, y=HeartDisease),
+              method = "glm",
+              method.args = list(family=
+                                   "binomial"))+
+  theme(axis.text.x = element_text(angle=45,
+                                   vjust = 1,
+                                   hjust = 1))
+
+ageTestPred<-predict(age_glmFit,
+                     newdata = heartTest,
+                     type = "raw")
+ageTestPred
+
+confusionMatrix(ageTestPred,heartTest$HeartDisease)
+```
+
+```{r train and fit cholHeart}
+
+# cholHeart_train<- heartDisease[trainingVector,]
+# cholHeart_test<- heartDisease[-trainingVector,]
+# cholHeart_test$HeartDisease<-as.factor(cholHeart_test$HeartDisease)
+
+chol_glmFit<-train(as.factor(HeartDisease) ~ Cholesterol,
+                data = heartTrain,
+                method = "glm",
+                trControl=trctrl,
+                preProcess=c("center","scale"),
+                tuneLength=10,
+                family="binomial")
+
+# cholHeart_fit
+#chol_glmFit<-glm(HeartDisease~Cholesterol,data=heartTrain,family="binomial")
+chol_glmFit
+summary(chol_glmFit)
+#heartDisease$HeartDisease<-as.numeric(as.character(heartDisease$HeartDisease))
+cholHeart_sum<-heartTrain|>
+  group_by(Cholesterol)|>
+  summarise(probHeartDisease = mean(HeartDisease), n=n())
+
+
+
+ggplot(cholHeart_sum,aes(x=Cholesterol,y=probHeartDisease),size=n)+
+  geom_point(stat = "identity",aes(size = n))+
+  stat_smooth(data = heartTrain,
+              aes(x=Cholesterol, y=HeartDisease),
+              method = "glm",
+              method.args = list(family=
+                                   "binomial"))+
+  theme(axis.text.x = element_text(angle=45,
+                                   vjust = 1,
+                                   hjust = 1))
+
+cholTestPred<-predict(chol_glmFit,
+                     newdata = heartTest,
+                     type = "raw")
+cholTestPred
+
+confusionMatrix(cholTestPred,heartTest$HeartDisease)
+```
+
+```{r train and fit maxHRHeart}
+# maxHRHeart_train<- heartDisease[trainingVector,]
+# maxHRHeart_test<- heartDisease[-trainingVector,]
+# maxHRHeart_test$HeartDisease<-as.factor(cholHeart_test$HeartDisease)
+
+#Cross Validation
+maxHR_glmFit<-train(as.factor(HeartDisease) ~MaxHR,
+               data = heartTrain,
                method = "glm",
                trControl=trctrl,
                preProcess=c("center","scale"),
-               tuneLength=10)
-ageHeart_fit
+               tuneLength=10,
+               family="binomial")
+# maxHRHeart_fit
+#maxHR_glmFit<-glm(HeartDisease~MaxHR,data=heartTrain,family="binomial")
+maxHR_glmFit
+summary(maxHR_glmFit)
+#heartDisease$HeartDisease<-as.numeric(as.character(heartDisease$HeartDisease))
+maxHRHeart_sum<-heartTrain|>
+  group_by(MaxHR)|>
+  summarise(probHeartDisease = mean(HeartDisease), n=n())
 
-heartDisease$HeartDisease<-as.numeric(as.character(heartDisease$HeartDisease))
-ageHeart_sum<-heartDisease|>
-  group_by(Age_cut=cut(Age,11))|>
-  summarise(probHeartDisease = mean(HeartDisease))
-ggplot(ageHeart_sum,aes(x=Age_cut,y=probHeartDisease))+geom_point()+geom_point(stat = "identity")
 
-testPred<-predict(knn_fit,newdata = heartTest)
-testPred
 
-confusionMatrix(testPred,heartTest$HeartDisease)
+ggplot(maxHRHeart_sum,aes(x=MaxHR,y=probHeartDisease),size=n)+
+  geom_point(stat = "identity",aes(size = n))+
+  stat_smooth(data = heartTrain,
+              aes(x=MaxHR, y=HeartDisease),
+              method = "glm",
+              method.args = list(family=
+                                   "binomial"))+
+  theme(axis.text.x = element_text(angle=45,
+                                   vjust = 1,
+                                   hjust = 1))
+
+maxHRTestPred<-predict(maxHR_glmFit,
+                       newdata = heartTest,
+                       type = "raw")
+maxHRTestPred
+
+confusionMatrix(maxHRTestPred,heartTest$HeartDisease)
+
 ```
 
 Identify your best model and provide a basic summary of it.
 
++ The best model is the Max Heart Rate by Probability of Heart Disease model. 
+```{r summary of MaxHR by Heart Disease model}
+summary(maxHR_glmFit)
+```
+
 Lastly, check how well your chosen model does on the test set using the confusionMatrix() function.
+
+```{r maxHR confusionMatrix}
+
+confusionMatrix(maxHRTestPred,heartTest$HeartDisease)
+
+```
+
+### Tree Models
+
+In this section we’ll fit a few different tree based models in a similar way as above!
+
+Choose your own variables of interest (as with logistic regression, this models can accept factor/character variables as predictors). Use repeated 10 fold CV to select a best 
+
++ classification tree model (use method = rpart: tuning parameter is cp, use values 0, 0.001, 0.002, . . . ,
+0.1)
+
+```{r clasification Tree}
+#maxHR,RestingHR,cholesteral
+maxHRFit<-train(as.factor(HeartDisease) ~MaxHR+Cholesterol+RestingBP,
+               data = heartTrain,
+               method = "rpart",
+               preProcess=c("center","scale"),
+               trControl=trctrl,
+               tuneGrid=data.frame(cp=c(seq(0,.1, by=0.001)
+                                        )
+                                   )
+               )
+print(maxHRFit)
+plot(maxHRFit)
+```
+
++ a random forest (use method = rf: tuning parameter is mtry, use values of 1, 2, . . . , # of predictors (bagging is a special case here!)
+
+```{r random forest}
+# Creates a random forrest to find out how many predictors should be used
+ForrestFit<-train(as.factor(HeartDisease) ~MaxHR+Cholesterol+RestingBP,
+               data = heartTrain,
+               method = "rf",
+               preProcess=c("center","scale"),
+               trControl=trctrl,
+               tuneGrid=data.frame(mtry=1)
+               )
+
+predict(ForrestFit,
+        newdata = heartTrain,
+        type="raw"
+        )
+```
+
+
++ a boosted tree (use method = gbm: tuning parameters are n.trees, interaction.depth, shrinkage, and n.minobsinnode, use all combinations of n.trees of 25, 50, 100, and 200, interaction.depth of 1, 2, 3, shrinkage = 0.1, and nminobsinnode = 10; Hint: use expand.grid() to create your data frame for tuneGrid and verbose = FALSE limits the output produced
+
+```{r boosted tree}
+boostedTreeFit<-train(as.factor(HeartDisease) ~MaxHR+Cholesterol+RestingBP,
+               data = heartTrain,
+               method = "gbm",
+               preProcess=c("center","scale"),
+               trControl=trctrl,
+               tuneGrid=expand.grid(
+                 n.trees=c(25,50,100,200),
+                    interaction.depth=c(1,2,3),
+                    shinkage=.01,
+                    n.minobsinnode=10),
+               verbose=FALSE
+                 )
+
+```
+
+
+Lastly, check how well each of your chosen models do on the test set using the confusionMatrix() function.
