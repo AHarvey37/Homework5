@@ -302,6 +302,11 @@ maxHRFit<-train(as.factor(HeartDisease) ~MaxHR+Cholesterol+RestingBP,
                )
 print(maxHRFit)
 plot(maxHRFit)
+
+treePredict<-predict(maxHRFit,
+        newdata = heartTest,
+        type="raw"
+        )
 ```
 
 + a random forest (use method = rf: tuning parameter is mtry, use values of 1, 2, . . . , # of predictors (bagging is a special case here!)
@@ -316,8 +321,8 @@ ForrestFit<-train(as.factor(HeartDisease) ~MaxHR+Cholesterol+RestingBP,
                tuneGrid=data.frame(mtry=1)
                )
 
-predict(ForrestFit,
-        newdata = heartTrain,
+forrestPredict<-predict(ForrestFit,
+        newdata = heartTest,
         type="raw"
         )
 ```
@@ -333,13 +338,30 @@ boostedTreeFit<-train(as.factor(HeartDisease) ~MaxHR+Cholesterol+RestingBP,
                trControl=trctrl,
                tuneGrid=expand.grid(
                  n.trees=c(25,50,100,200),
-                    interaction.depth=c(1,2,3),
-                    shinkage=.01,
-                    n.minobsinnode=10),
+                 interaction.depth=c(1,2,3),
+                 shrinkage=.01,
+                 n.minobsinnode=10),
                verbose=FALSE
                  )
 
+boostedPredict<-predict(boostedTreeFit,
+        newdata = heartTest,
+        type="raw"
+        )
+boostedPredict
 ```
 
 
 Lastly, check how well each of your chosen models do on the test set using the confusionMatrix() function.
+
+```{r Confusion Matrix Check}
+confusionMatrix(treePredict,heartTest$HeartDisease)
+
+confusionMatrix(forrestPredict,heartTest$HeartDisease)
+
+confusionMatrix(boostedPredict,heartTest$HeartDisease)
+```
+### Wrap up
+Which model overall did the best job (in terms of accuracy) on the test set?
+
++ Overall the forest prediction did slightly better than the tree model and boosted tree model. The forest prediction had a 64.67% accuracy rate compared to the 64% accuracy of the other models. That being said the difference between the models is extremely small.
