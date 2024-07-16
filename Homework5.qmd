@@ -10,16 +10,23 @@ editor: visual
 
 1. What is the purpose of using cross-validation when fitting a random forest model?
 
++ The purpose for cross-validation in when fitting random forest models is to ensure that response variable is not overfitting and allows us to more clearly see how the model fits with new data. This is important in random forests to provide even more accuracy. 
+
 2. Describe the bagged tree algorithm.
 
-+ The bagged tree algorithm is a method in which we attempt to find accuracy within trees. The bagged tree algorithm takes in multiple fitted trees and aggregates them over a designated response variable in an attempt to find a prediction that holds for the accumulated trees. 
+<mark> + The bagged tree algorithm is a method in which we attempt to minimize variance in many fitted trees. The bagged tree algorithm takes in multiple fitted trees and aggregates them over a designated response variable in an attempt to find a prediction that holds for the accumulated trees. This increases accuracy and lowers variance.<mark>
 
 3. What is meant by a general linear model?
 
+<mark> + A general linear model has a continuous response variable and can be both categorical and continuous predictors. A general linear model also follows the formula $$Y = \beta_{1}X_{1}+\beta_{2}X_{2}+...+\beta_{n}X_{n}$$ <mark>
+
 4. When fitting a multiple linear regression model, what does adding an interaction term do? That is, what does it allow the model to do differently as compared to when it is not included in the model?
+
+<mark> + Adding interaction terms when fitting multiple linear regression models allows you to see how different variables affect each other. When interaction terms are not included in the model the model will focus on the response variable alone. <mark>
 
 5. Why do we split our data into a training and test set?
 
+<mark> + Splitting data into a training and test set allows us to see how well our model preforms on different data. Splitting the data lets us train our model on our training set then test the model on the test set were we know the outcome which lets us review the performance of the model. <mark>
 
 ## Task 2: Fitting Models
 
