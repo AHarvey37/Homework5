@@ -14,7 +14,7 @@ editor: visual
 
 2. Describe the bagged tree algorithm.
 
-<mark> + The bagged tree algorithm is a method in which we attempt to minimize variance in many fitted trees. The bagged tree algorithm takes in multiple fitted trees and aggregates them over a designated response variable in an attempt to find a prediction that holds for the accumulated trees. This increases accuracy and lowers variance.<mark>
+<mark> + The bagged tree algorithm is a method in which we attempt to minimize variance in many fitted trees. The bagged tree algorithm takes in multiple fitted trees and aggregates them over a designated response variable in an attempt to find a prediction that holds for the accumulated trees. This increases accuracy and lowers variance. <mark>
 
 3. What is meant by a general linear model?
 
@@ -371,4 +371,4 @@ confusionMatrix(boostedPredict,heartTest$HeartDisease)
 ### Wrap up
 Which model overall did the best job (in terms of accuracy) on the test set?
 
-+ Overall the forest prediction did slightly better than the tree model and boosted tree model. The forest prediction had a 64.67% accuracy rate compared to the 64% accuracy of the other models. That being said the difference between the models is extremely small.
+<mark> + Overall the forest prediction did slightly better than the tree model and boosted tree model. The forest prediction had a 64.67% accuracy rate compared to the 64% accuracy of the other models. That being said the difference between the models is extremely small. <mark>
