@@ -33,17 +33,22 @@ editor: visual
 ### Quick EDA/Data Preparation
 
 1. Quickly understand your data. Check on missingness and summarize the data, especially with respect to the relationships of the variables to HeartDisease.
+
 ```{r Load Libraries, warning=FALSE,message=FALSE}
 library(tidyverse)
 library(caret)
 library(randomForest)
 ```
 
+<mark> + This chunk takes in the original data set and uses the na_if function to change assumed missing/NULL values into "NA". Since a resting blood pressure and cholestoral of 0 is not possible while living we can assume that 0 is a null or missing value. This chunk then drops all rows with na observations and assigns it to a new data frame. Finally, this chunk prints a summary of the new data frame. <mark>
+
 ```{r Load data and summarise}
 originalData<-read.csv("https://www4.stat.ncsu.edu/~online/datasets/heart.csv")
 
-# If RestingBP or Cholesterol = 0 then patient would be dead thus we can assume 0 is a missing/Null value
-# Replaces ) with NA
+print(summary(originalData))
+
+# If RestingBP or Cholesterol = 0 then patient would be dead thus we can assume 0 is a
+# missing/Null value Replaces ) with NA
 originalData$RestingBP<-na_if(originalData$RestingBP,0)
 originalData$Cholesterol<-na_if(originalData$Cholesterol,0)
 
@@ -55,12 +60,14 @@ heartDisease<-originalData|>
   drop_na()
 
 # Create Summary table with respect to heart disease
-summary(heartDisease)
+print(summary(heartDisease))
 
 ```
 
 
 2. Create a new variable that is a factor version of the HeartDisease variable (if needed, this depends on how you read in your data). Remove the ST_Slope variable and the original HeartDisease variable (if applicable).
+
+<mark> + This chunk drops the ST_Slope variable.<mark>
 
 ```{r Factor HeartDisease}
 # Change HeartDisease to factor, drop ST_Slope
@@ -72,6 +79,8 @@ heartDisease<-heartDisease|>
 
 Create dummy columns corresponding to the values of these three variables for use in our kNN fit. The caret vignette has a function to help us out here. You should use dummyVars() and predict() to create new columns. Then add these columns to our data frame.
 
+<mark> + This chunk creates dummy variables for all categorical variables then uses predict to transform the data frame into all numeric data (even though there are categorical variables). <mark>
+
 ```{r Remove Categorical Variables}
 
 # Use dummyVars to transform all categorical variables to numerics.
@@ -79,14 +88,14 @@ Create dummy columns corresponding to the values of these three variables for us
 dummies<-dummyVars(~.,data = heartDisease, sep = ".")
 
 heartDisease2<-predict(dummies,newdata = heartDisease)|>
-  as_tibble()|>
-  mutate(HeartDisease=as.factor(HeartDisease))
+  as_tibble()
 ```
 
 ### Split your Data
 
 split your data into a training and test set. (ideally you'd do this prior to the EDA so that info from the EDA doesn't bias what you do modeling-wise, but that isn't usually done.)
 
+<mark> + This chunk sets a seed for random numbers and then splits our data into a training and test set. <mark>
 ```{r Split Data}
 # Set the seed to enable reproducible 
 set.seed(8)
@@ -94,9 +103,11 @@ set.seed(8)
 trainingVector<- sample(1:nrow(heartDisease2),size = nrow(heartDisease2)*.8)
 
 # Subset heartDisease_2 into  training and test data sets
-heartTrain<-heartDisease2[trainingVector,]
+heartTrain<-heartDisease2[trainingVector,]|>
+  mutate(HeartDisease=as.factor(HeartDisease))
 
-heartTest<-heartDisease2[-trainingVector,]
+heartTest<-heartDisease2[-trainingVector,]|>
+  mutate(HeartDisease=as.factor(HeartDisease))
 ```
 
 ### kNN
@@ -110,10 +121,12 @@ They use repeated 10 fold cross-validation. Although computationally intensive, 
 Train the kNN model. Use repeated 10 fold cross-validation, with the number of repeats being 3. You should also preprocess the data by centering and scaling. When fitting the model, set the tuneGrid so that you are considering values of k of 1, 2, 3, . . . , 40. (Note: From the help for the train() function it says: tuneGrid A data frame with possible tuning values. The columns are named the same as the tuning parameters. The name of the tuning parameter here is k.)
 Lastly, check how well your chosen model does on the test set using the confusionMatrix() function.
 
+<mark> + This chunk creates the trcrl variable which we will use to cross validate all of our data when training. It also trains the knn model. Within the knn model we change the HeartDisease variable to a factor.We then plot the model to view the optimal number of neighbors. We then use the predict function with our model and the test data. The confusion matrix thenshows how well our model preformed. <mark>
+
 ```{r kNN}
 trctrl<-trainControl(method = "repeatedcv", number = 10, repeats = 3)
 
-knn_fit<-train(as.factor(HeartDisease) ~.,
+knn_fit<-train(HeartDisease ~.,
                data = heartTrain,
                method = "knn",
                trControl=trctrl,
@@ -136,20 +149,11 @@ Using your EDA, posit three different logistic regression models. Note: You donâ
 
 Fit those models on the training set, using repeated CV as done above. You can preprocess the data or not, up to you. 
 
+<mark> + The following 3 chunks fit 3 glm models on different variables to see how well of an indicator each is for heart disease. each chunk trains a model, summaries the model, plots it, predicts the test dataset then shows the results using a confusion matrix.  <mark>
+
 ```{r train and fit ageHeart}
 
-# ageHeart_train<- heartDisease[trainingVector,]
-# ageHeart_test<- heartDisease[-trainingVector,]
-# ageHeart_test$HeartDisease<-as.factor(ageHeart_test$HeartDisease)
-
-# ageHeart_fit<-train(as.factor(HeartDisease) ~.,
-#                data = ageHeart_train,
-#                method = "glm",
-#                trControl=trctrl,
-#                preProcess=c("center","scale"),
-#                tuneLength=10)
-# ageHeart_fit
-age_glmFit<-train(as.factor(HeartDisease)~Age,
+age_glmFit<-train(HeartDisease~Age,
                   data=heartTrain,
                   method="glm",
                   trControl = trctrl,
@@ -181,14 +185,10 @@ ageTestPred<-predict(age_glmFit,
                      type = "raw")
 ageTestPred
 
-confusionMatrix(ageTestPred,heartTest$HeartDisease)
+confusionMatrix(ageTestPred,as.factor(heartTest$HeartDisease))
 ```
 
 ```{r train and fit cholHeart}
-
-# cholHeart_train<- heartDisease[trainingVector,]
-# cholHeart_test<- heartDisease[-trainingVector,]
-# cholHeart_test$HeartDisease<-as.factor(cholHeart_test$HeartDisease)
 
 chol_glmFit<-train(as.factor(HeartDisease) ~ Cholesterol,
                 data = heartTrain,
@@ -198,11 +198,10 @@ chol_glmFit<-train(as.factor(HeartDisease) ~ Cholesterol,
                 tuneLength=10,
                 family="binomial")
 
-# cholHeart_fit
-#chol_glmFit<-glm(HeartDisease~Cholesterol,data=heartTrain,family="binomial")
+
 chol_glmFit
 summary(chol_glmFit)
-#heartDisease$HeartDisease<-as.numeric(as.character(heartDisease$HeartDisease))
+
 cholHeart_sum<-heartTrain|>
   group_by(Cholesterol)|>
   summarise(probHeartDisease = mean(HeartDisease), n=n())
@@ -229,11 +228,9 @@ confusionMatrix(cholTestPred,heartTest$HeartDisease)
 ```
 
 ```{r train and fit maxHRHeart}
-# maxHRHeart_train<- heartDisease[trainingVector,]
-# maxHRHeart_test<- heartDisease[-trainingVector,]
-# maxHRHeart_test$HeartDisease<-as.factor(cholHeart_test$HeartDisease)
 
-#Cross Validation
+
+#Cross Validation preformed in trControl
 maxHR_glmFit<-train(as.factor(HeartDisease) ~MaxHR,
                data = heartTrain,
                method = "glm",
@@ -241,11 +238,10 @@ maxHR_glmFit<-train(as.factor(HeartDisease) ~MaxHR,
                preProcess=c("center","scale"),
                tuneLength=10,
                family="binomial")
-# maxHRHeart_fit
-#maxHR_glmFit<-glm(HeartDisease~MaxHR,data=heartTrain,family="binomial")
+
 maxHR_glmFit
 summary(maxHR_glmFit)
-#heartDisease$HeartDisease<-as.numeric(as.character(heartDisease$HeartDisease))
+
 maxHRHeart_sum<-heartTrain|>
   group_by(MaxHR)|>
   summarise(probHeartDisease = mean(HeartDisease), n=n())
@@ -274,13 +270,15 @@ confusionMatrix(maxHRTestPred,heartTest$HeartDisease)
 
 Identify your best model and provide a basic summary of it.
 
-+ The best model is the Max Heart Rate by Probability of Heart Disease model. 
+<mark> + The best model is the Max Heart Rate by Probability of Heart Disease model. <mark>
+
 ```{r summary of MaxHR by Heart Disease model}
 summary(maxHR_glmFit)
 ```
 
 Lastly, check how well your chosen model does on the test set using the confusionMatrix() function.
 
+<mark> + This chunk uses a confusion martix to show how well the maxHR model preformed
 ```{r maxHR confusionMatrix}
 
 confusionMatrix(maxHRTestPred,heartTest$HeartDisease)
@@ -295,6 +293,8 @@ Choose your own variables of interest (as with logistic regression, this models 
 
 + classification tree model (use method = rpart: tuning parameter is cp, use values 0, 0.001, 0.002, . . . ,
 0.1)
+
+<mark> + This chunk preforms a classification tree model on three variables and predicts the outcome. <mark>
 
 ```{r clasification Tree}
 #maxHR,RestingHR,cholesteral
@@ -318,6 +318,8 @@ treePredict<-predict(maxHRFit,
 
 + a random forest (use method = rf: tuning parameter is mtry, use values of 1, 2, . . . , # of predictors (bagging is a special case here!)
 
+<mark> + This chunk preforms a random forest model on three variables and predicts the outcome. <mark>
+
 ```{r random forest}
 # Creates a random forrest to find out how many predictors should be used
 ForrestFit<-train(as.factor(HeartDisease) ~MaxHR+Cholesterol+RestingBP,
@@ -336,6 +338,8 @@ forrestPredict<-predict(ForrestFit,
 
 
 + a boosted tree (use method = gbm: tuning parameters are n.trees, interaction.depth, shrinkage, and n.minobsinnode, use all combinations of n.trees of 25, 50, 100, and 200, interaction.depth of 1, 2, 3, shrinkage = 0.1, and nminobsinnode = 10; Hint: use expand.grid() to create your data frame for tuneGrid and verbose = FALSE limits the output produced
+
+<mark> + This chunk preforms a boosted tree model on three variables and predicts the outcome. <mark>
 
 ```{r boosted tree}
 boostedTreeFit<-train(as.factor(HeartDisease) ~MaxHR+Cholesterol+RestingBP,
@@ -361,13 +365,17 @@ boostedPredict
 
 Lastly, check how well each of your chosen models do on the test set using the confusionMatrix() function.
 
+<mark> + This chunk checks the preformace of all three tree models using the confuxion martix. <mark>
+
 ```{r Confusion Matrix Check}
-confusionMatrix(treePredict,heartTest$HeartDisease)
+print(confusionMatrix(treePredict,heartTest$HeartDisease))
 
-confusionMatrix(forrestPredict,heartTest$HeartDisease)
+print(confusionMatrix(forrestPredict,heartTest$HeartDisease))
 
-confusionMatrix(boostedPredict,heartTest$HeartDisease)
+print(confusionMatrix(boostedPredict,heartTest$HeartDisease))
 ```
+
+
 ### Wrap up
 Which model overall did the best job (in terms of accuracy) on the test set?
 
